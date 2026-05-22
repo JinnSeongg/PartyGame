@@ -45,9 +45,24 @@ const httpServer = createServer((request, response) => {
   response.end('Party game server is running.')
 })
 
+const allowedOrigins = new Set([
+  'https://jinn.ing',
+  'https://www.jinn.ing',
+  'http://jinn.ing',
+  'http://www.jinn.ing',
+  'http://161.33.4.141',
+  'http://127.0.0.1:5173',
+  'http://localhost:5173',
+])
 const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
   cors: {
-    origin: '*',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, true)
+        return
+      }
+      callback(new Error('Origin is not allowed'))
+    },
   },
 })
 
@@ -57,6 +72,6 @@ io.on('connection', (socket) => {
   roomManager.bindSocket(socket)
 })
 
-httpServer.listen(PORT, () => {
-  console.log(`Realtime server listening on http://localhost:${PORT}`)
+httpServer.listen(PORT, '127.0.0.1', () => {
+  console.log(`Realtime server listening on http://127.0.0.1:${PORT}`)
 })

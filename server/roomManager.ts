@@ -65,7 +65,17 @@ export class RoomManager {
   public constructor(private readonly io: GameServer) {}
 
   public bindSocket(socket: GameSocket) {
+    const eventHits = new Map<string, number[]>()
+
     socket.emit('connection_status', { reconnecting: false })
+
+    socket.use(([event], next) => {
+      if (this.isRateLimited(eventHits, String(event))) {
+        next(new Error('Too many requests. Please wait a moment.'))
+        return
+      }
+      next()
+    })
 
     socket.on('create_room', (payload) => this.handleCreateRoom(socket, payload))
     socket.on('join_room', (payload) => this.handleJoinRoom(socket, payload))
@@ -567,5 +577,15 @@ export class RoomManager {
 
   private emitError(socket: GameSocket, message: string) {
     socket.emit('error_message', { message })
+  }
+
+  private isRateLimited(hits: Map<string, number[]>, event: string) {
+    const now = Date.now()
+    const windowMs = event === 'send_chat' ? 5000 : 10000
+    const limit = event === 'send_chat' ? 12 : event === 'create_room' || event === 'join_room' ? 8 : 80
+    const recent = (hits.get(event) ?? []).filter((timestamp) => now - timestamp < windowMs)
+    recent.push(now)
+    hits.set(event, recent)
+    return recent.length > limit
   }
 }
